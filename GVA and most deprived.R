@@ -84,6 +84,22 @@ labels <- sprintf("<strong>%s</strong><br/>%s GVA (£ mil)<sup></sup>",
                   format(LADbounds$`2018`, big.mark = ",")) %>% 
   lapply(htmltools::HTML)
 
+####function for circles to additional legend####
+addLegendCustom <- function(map, colors, labels, sizes, opacity = 0.7, position){
+  
+  colorAdditions <- paste0(colors, "; border-radius: 50%; width:", sizes, "px; height:",
+                           sizes, "px", "; position: relative; left: ",max(sizes)-(sizes/2)-5,"px")
+  
+  labelAdditions <- paste0("<div style='display: inline-block;height: ", 
+                           sizes,";position:relative; left: ",max(sizes)-(sizes),"px","; bottom: ",
+                           10,"px",";margin-top: 12px;line-height: ", sizes, "px;'>", 
+                           labels, "</div>")
+  
+  return(addLegend(map, colors = colorAdditions, 
+                   labels = labelAdditions, opacity = opacity, position = position))
+}
+
+
 #map element
 m2 <- leaflet(LADbounds, height = "600px", options = list(padding = 100)) %>% setView(-3.5,53.2, 5.5) %>% 
   setMapWidgetStyle(list(background = "white")) %>% addProviderTiles(providers$CartoDB.Positron, providerTileOptions(opacity = 1) ) %>% 
@@ -101,10 +117,15 @@ m2 <- leaflet(LADbounds, height = "600px", options = list(padding = 100)) %>% se
               options = leafletOptions(pane = "nottoplayer")) %>%
 
   addCircleMarkers(data = LSOAcentroids, group = "circlegw",
-                 radius = 2,
+                 radius = 1.5,
                  stroke = F,
-                 color = "red", opacity = 0.85, fillOpacity = 0.85,
+                 color = "#00E1BA", opacity = 0.85, fillOpacity = 0.85,
                  options = leafletOptions(pane = "toplayer")) %>% 
+  
+  addLegendCustom(colors = c("#00E1BA"), 
+                  labels = c("Most deprived 10% n'hood"),
+                  
+                  sizes = c(10), position = "bottomright" ) %>% 
   
   addLegend(pal = factpal, values = LADbounds$gvaquins, labels = levels(LADbounds$gvaquins), position = "bottomright", title = "GVA Quintiles <br>(1 = low)") %>% 
   removeDrawToolbar(clearFeatures = T) %>% 
@@ -118,11 +139,18 @@ m2
 library(htmltools)
 
 #page element title
-title <- tags$div(HTML("COVID-19 deaths per 100,000 and deprivation,<br> March to May 2020, England and Wales</br>"), 
+title <- tags$div(HTML("Gross Value Added (GVA) by Local Authority and most deprived neighbourhoods,<br> 2018, England and Wales</br>"), 
                   style = "font-family: Open Sans;color: #2A2A2A;font-weight: bold; font-size: 22px; text-align: center"
 )
 
 #page element data sources
-sources <- tags$div(HTML("Sources: Indices of Multiple Deprivation, MHCLG; Welsh Index of Multiple Deprivation 2019; Deaths involving COVID-19 by local area and deprivation, ONS<br> Analysis: WPI Economics on behalf of CRC, originally produced for Trust for London<br>Note: Deprivation ranks are relative to England and Wales separately"), 
+sources <- tags$div(HTML("Sources: Regional gross value added (balanced) by industry: local authorities by NUTS1 region,ONS; <br> Indices of Multiple Deprivation, MHCLG; Welsh Index of Multiple Deprivation 2019<br> 
+                        Analysis: WPI Economics on behalf of CRC <br>
+                         Note: Deprivation ranks are relative to England and Wales separately"), 
                     style = "font-family: Open Sans;color: #2A2A2A;font-style: italic; font-size: 12px; text-align: left"
 )
+
+
+combo <- htmltools::tagList(title,m2,sources) #I think this makes a combined html object
+browsable(combo)
+htmltools::save_html(combo, "index.html", background = "#FFFCF1") 
