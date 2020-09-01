@@ -157,12 +157,13 @@ m2
 library(htmltools)
 
 #page element title
-title <- tags$div(HTML("Gross Value Added (GVA) by Local Authority and most deprived neighbourhoods,<br> 2018, England and Wales</br>"), 
-                  style = "font-family: Open Sans;color: #2A2A2A;font-weight: bold; font-size: 22px; text-align: center"
+title <- tags$div(HTML("Gross Value Added (GVA) per head by Local Authority and most deprived neighbourhoods;<br> 2018; England and Wales</br>"), 
+                  style = "font-family: Open Sans;color: #2A2A2A;font-weight: bold; font-size: 16px; text-align: center"
 )
 
 #page element data sources
-sources <- tags$div(HTML("Sources: Regional gross value added (balanced) by industry: local authorities by NUTS1 region,ONS; <br> Indices of Multiple Deprivation, MHCLG; Welsh Index of Multiple Deprivation 2019<br> 
+sources <- tags$div(HTML("Sources: Regional gross value added (balanced) by industry: local authorities by NUTS1 region,ONS; <br> Indices of Multiple Deprivation, MHCLG; Welsh Index of Multiple Deprivation 2019;<br>
+Mid-year population estimates 2018, ONS<br>
                         Analysis: WPI Economics on behalf of CRC <br>
                          Note: Deprivation ranks are relative to England and Wales separately"), 
                     style = "font-family: Open Sans;color: #2A2A2A;font-style: italic; font-size: 12px; text-align: left"
@@ -172,3 +173,11 @@ sources <- tags$div(HTML("Sources: Regional gross value added (balanced) by indu
 combo <- htmltools::tagList(title,m2,sources) #I think this makes a combined html object
 browsable(combo)
 htmltools::save_html(combo, "index.html", background = "#FFFCF1") 
+
+#' work out %ge of deprived LSOAs by GVA quintile
+LSOAcentroids2 <- merge(LSOAcentroids, allgva[,c(1,7)], by.x = "Local Authority District code (2019)",by.y = "LAD code" ) #note LSOAcentriods already filtered to only include most deprived n'hoods.
+
+t1 <- LSOAcentroids2 %>% group_by(gvaquins) %>% summarise(`most deprived neighbourhood count` = sum(`IMD decile (1 is most deprived)`))
+t1$percent <- t1$`most deprived neighbourhood count`/sum(t1$`most deprived neighbourhood count`)*100
+view(t1)
+
