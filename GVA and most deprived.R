@@ -20,9 +20,9 @@ allgva <- allgva %>% filter(`SIC07 description` == "All industries", Region != "
 
 #`grab the population data for per-capita derived`
 library(nomisr)
-x <- nomis_data_info()
-y <- nomis_get_metadata("NM_31_1")
-g <- nomis_get_metadata("NM_31_1", concept = "GEOGRAPHY")
+#x <- nomis_data_info()
+#y <- nomis_get_metadata("NM_31_1")
+#g <- nomis_get_metadata("NM_31_1", concept = "GEOGRAPHY")
 
 pops <- nomis_get_data("NM_31_1", time = "2018", sex = "Total", measures = 20100)
 pops2 <- filter(pops,GEOGRAPHY_TYPECODE == "434") #' Local authorities 2019
@@ -175,9 +175,9 @@ browsable(combo)
 htmltools::save_html(combo, "index.html", background = "#FFFCF1") 
 
 #' work out %ge of deprived LSOAs by GVA quintile
-LSOAcentroids2 <- merge(LSOAcentroids, allgva[,c(1,7)], by.x = "Local Authority District code (2019)",by.y = "LAD code" ) #note LSOAcentriods already filtered to only include most deprived n'hoods.
+LSOAcentroids2 <- merge(LSOAcentroids, allgva[,c(1,8)], by.x = "Local Authority District code (2019)",by.y = "LAD code" ) #note LSOAcentriods already filtered to only include most deprived n'hoods.
 
-t1 <- LSOAcentroids2 %>% group_by(gvaquins) %>% summarise(`most deprived neighbourhood count` = sum(`IMD decile (1 is most deprived)`))
+t1 <- LSOAcentroids2 %>% group_by(gvaquinspercapita) %>% summarise(`most deprived neighbourhood count` = sum(`IMD decile (1 is most deprived)`))
 t1$percent <- t1$`most deprived neighbourhood count`/sum(t1$`most deprived neighbourhood count`)*100
 view(t1)
 
