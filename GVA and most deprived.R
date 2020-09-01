@@ -18,8 +18,26 @@ allgva <- allgva %>% filter(`SIC07 description` == "All industries", Region != "
   select(Region, `LAD code`, `LA name`, `20183`) %>% 
   rename("2018" = "20183")
 
+#`grab the population data for per-capita derived`
+library(nomisr)
+x <- nomis_data_info()
+y <- nomis_get_metadata("NM_31_1")
+g <- nomis_get_metadata("NM_31_1", concept = "GEOGRAPHY")
+
+pops <- nomis_get_data("NM_31_1", time = "2018", sex = "Total", measures = 20100)
+pops2 <- filter(pops,GEOGRAPHY_TYPECODE == "434") #' Local authorities 2019
+pops2 <- filter(pops2,AGE_CODE == 0) #' all ages
+pops2 <- select(pops2, c("GEOGRAPHY_NAME", "GEOGRAPHY_CODE","OBS_VALUE"))
+
+#' merge in with GVA data
+allgva <- merge(allgva,pops2[,c(2:3)], by.x = "LAD code", by.y = "GEOGRAPHY_CODE", all.x = T)
+allgva <- rename(allgva, "Population 2018" ="OBS_VALUE")
+allgva$gva2018percapita <- as.numeric(allgva$`2018`*1000000/allgva$`Population 2018`) # multiplied by 1 million as ONS data per million
+allgva$gva2018percapita <- round(allgva$gva2018percapita,0)
+
 #' add quintiles
 allgva$gvaquins <- ntile(allgva$`2018`,5)
+allgva$gvaquinspercapita <- ntile(allgva$gva2018percapita,5)
 
 #### get the IMD for england and Wales ####
 
@@ -75,13 +93,13 @@ LSOAcentroids <- LSOAcentroids %>% filter(`IMD decile (1 is most deprived)` == 1
 #' colour pallete
 
 
-factpal <- colorFactor("BuPu",domain = as.factor(LADbounds$gvaquins),n = 5 ,ordered = TRUE )
-binpal <- colorQuantile("Blues", LADbounds$`2018`, n = 5)
+factpal <- colorFactor("BuPu",domain = as.factor(LADbounds$gvaquinspercapita),n = 5 ,ordered = TRUE )
+binpal <- colorQuantile("Blues", LADbounds$gva2018percapita, n = 5)
 
 #' hover labels
-labels <- sprintf("<strong>%s</strong><br/>%s GVA (£ mil)<sup></sup>",
+labels <- sprintf("<strong>%s</strong><br/>%s GVA per capita<sup></sup>",
                   LADbounds$lad19nm,
-                  format(LADbounds$`2018`, big.mark = ",")) %>% 
+                  format(LADbounds$gva2018percapita, big.mark = ",")) %>% 
   lapply(htmltools::HTML)
 
 ####function for circles to additional legend####
@@ -106,7 +124,7 @@ m2 <- leaflet(LADbounds, height = "600px", options = list(padding = 100)) %>% se
   addMapPane(name = "toplayer", zIndex = 420) %>% #layer orders to make sure LSOA markers render on top.
   addMapPane(name = "nottoplayer", zIndex = 410) %>% 
 
-  addPolygons(fillColor = ~factpal(LADbounds$gvaquins),
+  addPolygons(fillColor = ~factpal(LADbounds$gvaquinspercapita),
               stroke = F, smoothFactor = 0.2, fillOpacity = 0.9) %>% 
 
   addPolygons(label = labels, fillOpacity = 0, opacity = 0,
@@ -127,7 +145,7 @@ m2 <- leaflet(LADbounds, height = "600px", options = list(padding = 100)) %>% se
                   
                   sizes = c(10), position = "bottomright" ) %>% 
   
-  addLegend(pal = factpal, values = LADbounds$gvaquins, labels = levels(LADbounds$gvaquins), position = "bottomright", title = "GVA Quintiles <br>(1 = low)") %>% 
+  addLegend(pal = factpal, values = LADbounds$gvaquinspercapita, labels = levels(LADbounds$gvaquinspercapita), position = "bottomright", title = "GVA Quintiles <br>(1 = low)") %>% 
   removeDrawToolbar(clearFeatures = T) %>% 
   addResetMapButton() 
 m2
