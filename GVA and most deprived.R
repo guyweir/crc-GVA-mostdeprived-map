@@ -14,7 +14,7 @@ names(gvafiles) <- gvafileslist
 
 #' next filter data to include totals only and 2018
 allgva <- bind_rows(gvafiles)
-allgva <- allgva %>% filter(`SIC07 description` == "All industries", Region != "Northern Ireland") %>% 
+allgva <- allgva %>% filter(`SIC07 description` == "All industries") %>% 
   select(Region, `LAD code`, `LA name`, `20183`) %>% 
   rename("2018" = "20183")
 
@@ -87,6 +87,27 @@ simd.df <- simd.df %>% filter(deciles == 1) #keep most deprived decile
 datazonecentroids <- read_sf("http://sedsh127.sedsh.gov.uk/arcgis/rest/services/ScotGov/StatisticalUnits/MapServer/4/query?where=1%3D1&text=&objectIds=&time=&geometry=&geometryType=esriGeometryMultipoint&inSR=&spatialRel=esriSpatialRelWithin&relationParam=&outFields=*&returnGeometry=true&returnTrueCurves=false&maxAllowableOffset=&geometryPrecision=&outSR=&returnIdsOnly=false&returnCountOnly=false&orderByFields=&groupByFieldsForStatistics=&outStatistics=&returnZ=false&returnM=false&gdbVersion=&returnDistinctValues=false&resultOffset=&resultRecordCount=&f=geojson")
 datazonecentroids <- merge(datazonecentroids, simd.df, by.x = "DataZone", by.y = "Data_Zone")
 
+##### Northern Ireland #####
+niimd.df <- read_excel("NIMDM17_SA - for publication.xls", sheet = "MDM")
+niimd.df <- niimd.df[,c(3,5)]
+niimd.df <- niimd.df %>% rename(`IMD Rank` = 2)
+niimd.df <- niimd.df %>% mutate(deciles = ntile(`IMD Rank`,10))
+#select the most deprived decile
+niimd.df <- filter(niimd.df,deciles == 1 )
+
+
+#get the centroids
+NI.soas <- readOGR(layer = "SA2011", dsn = "SA2011_Esri_Shapefile_0")
+temp <- SpatialPointsDataFrame(gCentroid(NI.soas, byid=TRUE), 
+                               NI.soas@data, match.ID=FALSE)
+#NI.centroids <- st_as_sf(temp)
+NI.centroids <- spTransform(temp, CRS("+proj=longlat +datum=WGS84")) #need to convert coordinates to long lat from UTM/BNG
+NI.centroids <- st_as_sf(NI.centroids)
+
+#merge in the NI IMD data
+NI.centroids <- merge(NI.centroids,niimd.df, by = "SA2011")
+#NI.centroids <- NI.centroids %>% select(SA2011,`IMD Rank`, geometry)
+
 #### MAPS!!! #####
 
 suppressPackageStartupMessages(library(sp))
@@ -100,7 +121,8 @@ suppressPackageStartupMessages(library(leaflet.extras))
 #' go fetch boundary files and centriods to merge in
 
 
-LADbounds <- geojson_sf("https://opendata.arcgis.com/datasets/0e07a8196454415eab18c40a54dfbbef_0.geojson") #2019 boundaries
+#LADbounds <- geojson_sf("https://opendata.arcgis.com/datasets/0e07a8196454415eab18c40a54dfbbef_0.geojson") #2019 boundaries
+LADbounds <- geojson_sf("https://opendata.arcgis.com/datasets/3a4fa2ce68f642e399b4de07643eeed3_0.geojson") #2019 ultra generalised
 #LADbounds <- geojson_sf("https://opendata.arcgis.com/datasets/8edafbe3276d4b56aec60991cbddda50_3.geojson") #2015 boundaries
 
 
@@ -110,7 +132,7 @@ LSOAcentroids <- geojson_sf("https://opendata.arcgis.com/datasets/b7c49538f0464f
 #' merge data in
 LADbounds <- merge(LADbounds, allgva,by.x = "lad19cd", by.y = "LAD code", all.y = T)
 
-LSOAcentroids <- merge(LSOAcentroids, IMD19all, by.x = "lsoa11cd", by.y = "LSOA code (2011)")
+LSOAcentroids <- merge(LSOAcentroids, IMD19all[,c(1,5)], by.x = "lsoa11cd", by.y = "LSOA code (2011)")
 LSOAcentroids <- LSOAcentroids %>% filter(`IMD decile (1 is most deprived)` == 1)  # select just most deprived 10%
 
 #' colour pallete
@@ -142,7 +164,7 @@ addLegendCustom <- function(map, colors, labels, sizes, opacity = 0.7, position)
 
 
 #map element
-m2 <- leaflet(LADbounds, height = "600px", options = list(padding = 100)) %>% setView(-3.5,53.2, 5.5) %>% 
+m2 <- leaflet(LADbounds, height = "700px", options = list(padding = 100)) %>% setView(-3.5,54.6, 6) %>% 
   setMapWidgetStyle(list(background = "white")) %>% addProviderTiles(providers$CartoDB.Positron, providerTileOptions(opacity = 1) ) %>% 
   addMapPane(name = "toplayer", zIndex = 420) %>% #layer orders to make sure LSOA markers render on top.
   addMapPane(name = "nottoplayer", zIndex = 410) %>% 
@@ -169,12 +191,20 @@ m2 <- leaflet(LADbounds, height = "600px", options = list(padding = 100)) %>% se
                    color = "#00E1BA", opacity = 0.85, fillOpacity = 0.85,
                    options = leafletOptions(pane = "toplayer")) %>% 
   
+  #deprived areas in NI
+  
+  addCircleMarkers(data = NI.centroids, group = "circlegw",
+                   radius = 1.5,
+                   stroke = F,
+                   color = "#00E1BA", opacity = 0.85, fillOpacity = 0.85,
+                   options = leafletOptions(pane = "toplayer")) %>%
+  
   addLegendCustom(colors = c("#00E1BA"), 
                   labels = c("Most deprived 10% n'hood"),
                   
-                  sizes = c(10), position = "bottomright" ) %>% 
+                  sizes = c(10), position = "topright" ) %>% 
   
-  addLegend(pal = factpal, values = LADbounds$gvaquinspercapita, labels = levels(LADbounds$gvaquinspercapita), position = "bottomright", title = "GVA Quintiles <br>(1 = low)") %>% 
+  addLegend(pal = factpal, values = LADbounds$gvaquinspercapita, labels = levels(LADbounds$gvaquinspercapita), position = "topright", title = "GVA Quintiles <br>(1 = low)") %>% 
   removeDrawToolbar(clearFeatures = T) %>% 
   addResetMapButton() 
 m2
@@ -191,10 +221,13 @@ title <- tags$div(HTML("Gross Value Added (GVA) per head by Local Authority and 
 )
 
 #page element data sources
-sources <- tags$div(HTML("Sources: Regional gross value added (balanced) by industry: local authorities by NUTS1 region,ONS; <br> Indices of Multiple Deprivation, MHCLG; Welsh Index of Multiple Deprivation 2019;<br>
+sources <- tags$div(HTML("Note: Deprivation ranks are relative to each individual country <br>
+Sources: Regional gross value added (balanced) by industry: local authorities by NUTS1 region,ONS; 
+Indices of Multiple Deprivation 2019, MHCLG; Welsh Index of Multiple Deprivation 2019;
+Northern Ireland Multiple Deprivation Measure 2017, NISRA; 
+Scottish index of multiple deprivation 2020, Scottish Gov't;
 Mid-year population estimates 2018, ONS<br>
-                        Analysis: WPI Economics on behalf of CRC <br>
-                         Note: Deprivation ranks are relative to England and Wales separately"), 
+Analysis: WPI Economics on behalf of CRC"), 
                     style = "font-family: Open Sans;color: #2A2A2A;font-style: italic; font-size: 12px; text-align: left"
 )
 
