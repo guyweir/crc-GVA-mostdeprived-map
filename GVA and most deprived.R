@@ -170,7 +170,7 @@ m2 <- leaflet(LADbounds, height = "700px", options = list(padding = 100)) %>% se
   addMapPane(name = "nottoplayer", zIndex = 410) %>% 
 
   addPolygons(fillColor = ~factpal(LADbounds$gvaquinspercapita),
-              stroke = F, smoothFactor = 0.2, fillOpacity = 0.9) %>% 
+              stroke = F, smoothFactor = 0.2, fillOpacity = 0.7) %>% 
 
   addPolygons(label = labels, fillOpacity = 0, opacity = 0,
               labelOptions = labelOptions(
