@@ -14,9 +14,15 @@ names(gvafiles) <- gvafileslist
 
 #' next filter data to include totals only and 2018
 allgva <- bind_rows(gvafiles)
-allgva <- allgva %>% filter(`SIC07 description` == "All industries", Region != "Scotland", Region != "Northern Ireland") %>% 
+allgva <- allgva %>% filter(`SIC07 description` == "All industries", Region != "Northern Ireland") %>% 
   select(Region, `LAD code`, `LA name`, `20183`) %>% 
   rename("2018" = "20183")
+
+#' NOTE: the ONS GVA data is using a LAD code set that is 2019 for E&W but 2015 for Scotland! Have to manually adjust Glasgow City and South Lanarkshire to make it work.
+#' so S12000044 North Lanarkshire becomes S12000029
+#' S12000046 Glasgow city becomes S12000049
+allgva$`LAD code`[allgva$`LAD code` == "S12000044"] <- "S12000050"
+allgva$`LAD code`[allgva$`LAD code` == "S12000046"] <- "S12000049"
 
 #`grab the population data for per-capita derived`
 library(nomisr)
@@ -25,7 +31,7 @@ library(nomisr)
 #g <- nomis_get_metadata("NM_31_1", concept = "GEOGRAPHY")
 
 pops <- nomis_get_data("NM_31_1", time = "2018", sex = "Total", measures = 20100)
-pops2 <- filter(pops,GEOGRAPHY_TYPECODE == "434") #' Local authorities 2019
+pops2 <- filter(pops,GEOGRAPHY_TYPECODE == "434") #'   434 local authorities 2019 448 is as of April 2015
 pops2 <- filter(pops2,AGE_CODE == 0) #' all ages
 pops2 <- select(pops2, c("GEOGRAPHY_NAME", "GEOGRAPHY_CODE","OBS_VALUE"))
 
@@ -70,6 +76,17 @@ IMD19all <- bind_rows(IMD19Eng, IMD19Wales)
 #' bit of a tidy up
 rm(IMD19Eng, IMD19Wales, gvafileslist, gvafiles)
 
+####### SCOTLAND! #######
+simd.df <- read_excel("SIMD+2020v2+-+ranks.xlsx", sheet = "SIMD 2020v2 ranks")
+simd.df <- select(simd.df, Data_Zone, SIMD2020v2_Rank) #prune
+simd.df <- simd.df %>% mutate(deciles = ntile(SIMD2020v2_Rank,10)) #deciles
+simd.df <- simd.df %>% filter(deciles == 1) #keep most deprived decile
+
+
+#get the centroids
+datazonecentroids <- read_sf("http://sedsh127.sedsh.gov.uk/arcgis/rest/services/ScotGov/StatisticalUnits/MapServer/4/query?where=1%3D1&text=&objectIds=&time=&geometry=&geometryType=esriGeometryMultipoint&inSR=&spatialRel=esriSpatialRelWithin&relationParam=&outFields=*&returnGeometry=true&returnTrueCurves=false&maxAllowableOffset=&geometryPrecision=&outSR=&returnIdsOnly=false&returnCountOnly=false&orderByFields=&groupByFieldsForStatistics=&outStatistics=&returnZ=false&returnM=false&gdbVersion=&returnDistinctValues=false&resultOffset=&resultRecordCount=&f=geojson")
+datazonecentroids <- merge(datazonecentroids, simd.df, by.x = "DataZone", by.y = "Data_Zone")
+
 #### MAPS!!! #####
 
 suppressPackageStartupMessages(library(sp))
@@ -81,7 +98,13 @@ suppressPackageStartupMessages(library(leaflet))
 suppressPackageStartupMessages(library(leaflet.extras))
 
 #' go fetch boundary files and centriods to merge in
-LADbounds <- geojson_sf("https://opendata.arcgis.com/datasets/0e07a8196454415eab18c40a54dfbbef_0.geojson")
+
+
+LADbounds <- geojson_sf("https://opendata.arcgis.com/datasets/0e07a8196454415eab18c40a54dfbbef_0.geojson") #2019 boundaries
+#LADbounds <- geojson_sf("https://opendata.arcgis.com/datasets/8edafbe3276d4b56aec60991cbddda50_3.geojson") #2015 boundaries
+
+
+
 LSOAcentroids <- geojson_sf("https://opendata.arcgis.com/datasets/b7c49538f0464f748dd7137247bbc41c_0.geojson")
 
 #' merge data in
@@ -133,12 +156,18 @@ m2 <- leaflet(LADbounds, height = "600px", options = list(padding = 100)) %>% se
                 textsize = "15px",
                 direction = "auto"),
               options = leafletOptions(pane = "nottoplayer")) %>%
-
+#deprived areas in E&W
   addCircleMarkers(data = LSOAcentroids, group = "circlegw",
                  radius = 1.5,
                  stroke = F,
                  color = "#00E1BA", opacity = 0.85, fillOpacity = 0.85,
                  options = leafletOptions(pane = "toplayer")) %>% 
+#deprived areas in scotland
+  addCircleMarkers(data = datazonecentroids, group = "circlegw",
+                   radius = 1.5,
+                   stroke = F,
+                   color = "#00E1BA", opacity = 0.85, fillOpacity = 0.85,
+                   options = leafletOptions(pane = "toplayer")) %>% 
   
   addLegendCustom(colors = c("#00E1BA"), 
                   labels = c("Most deprived 10% n'hood"),
