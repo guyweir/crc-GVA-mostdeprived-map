@@ -97,7 +97,7 @@ niimd.df <- filter(niimd.df,deciles == 1 )
 
 
 #get the centroids
-NI.soas <- readOGR(layer = "SA2011", dsn = "SA2011_Esri_Shapefile_0")
+NI.soas <- readOGR(layer = "SA2011", dsn = "SA2011_Esri_Shapefile_0") #file too big for github have to DL from https://www.nisra.gov.uk/publications/small-area-boundaries-gis-format
 temp <- SpatialPointsDataFrame(gCentroid(NI.soas, byid=TRUE), 
                                NI.soas@data, match.ID=FALSE)
 #NI.centroids <- st_as_sf(temp)
