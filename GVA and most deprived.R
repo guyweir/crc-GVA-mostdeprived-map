@@ -97,6 +97,17 @@ niimd.df <- filter(niimd.df,deciles == 1 )
 
 
 #get the centroids
+library(rgdal)
+library(rgeos)
+suppressPackageStartupMessages(library(sp))
+suppressPackageStartupMessages(library(sf))
+suppressPackageStartupMessages(library(ggplot2))
+suppressPackageStartupMessages(library(ggiraph))
+suppressPackageStartupMessages(library(geojsonio))
+suppressPackageStartupMessages(library(leaflet))
+suppressPackageStartupMessages(library(leaflet.extras))
+
+
 NI.soas <- readOGR(layer = "SA2011", dsn = "SA2011_Esri_Shapefile_0") #file too big for github have to DL from https://www.nisra.gov.uk/publications/small-area-boundaries-gis-format
 temp <- SpatialPointsDataFrame(gCentroid(NI.soas, byid=TRUE), 
                                NI.soas@data, match.ID=FALSE)
@@ -110,13 +121,7 @@ NI.centroids <- merge(NI.centroids,niimd.df, by = "SA2011")
 
 #### MAPS!!! #####
 
-suppressPackageStartupMessages(library(sp))
-suppressPackageStartupMessages(library(sf))
-suppressPackageStartupMessages(library(ggplot2))
-suppressPackageStartupMessages(library(ggiraph))
-suppressPackageStartupMessages(library(geojsonio))
-suppressPackageStartupMessages(library(leaflet))
-suppressPackageStartupMessages(library(leaflet.extras))
+
 
 #' go fetch boundary files and centriods to merge in
 
@@ -243,3 +248,49 @@ t1 <- LSOAcentroids2 %>% group_by(gvaquinspercapita) %>% summarise(`most deprive
 t1$percent <- t1$`most deprived neighbourhood count`/sum(t1$`most deprived neighbourhood count`)*100
 view(t1)
 
+#extra map for print
+
+m2 <- leaflet(LADbounds, height = "700px", options = list(padding = 100)) %>% setView(-3.5,54.6, 6) %>% 
+  setMapWidgetStyle(list(background = "white")) %>% addProviderTiles(providers$CartoDB.Positron, providerTileOptions(opacity = 1) ) %>% 
+  addMapPane(name = "toplayer", zIndex = 420) %>% #layer orders to make sure LSOA markers render on top.
+  addMapPane(name = "nottoplayer", zIndex = 410) %>% 
+  
+  addPolygons(fillColor = ~factpal(LADbounds$gvaquinspercapita),
+              stroke = F, smoothFactor = 0.2, fillOpacity = 0) %>% 
+  
+  addPolygons(label = labels, fillOpacity = 0, opacity = 0,
+              labelOptions = labelOptions(
+                style = list("font-weight" = "normal", padding = "3px 8px"),
+                textsize = "15px",
+                direction = "auto"),
+              options = leafletOptions(pane = "nottoplayer")) %>%
+  #deprived areas in E&W
+  addCircleMarkers(data = LSOAcentroids, group = "circlegw",
+                   radius = 1.5,
+                   stroke = F,
+                   color = "#00E1BA", opacity = 0.85, fillOpacity = 0.85,
+                   options = leafletOptions(pane = "toplayer")) %>% 
+  #deprived areas in scotland
+  addCircleMarkers(data = datazonecentroids, group = "circlegw",
+                   radius = 1.5,
+                   stroke = F,
+                   color = "#00E1BA", opacity = 0.85, fillOpacity = 0.85,
+                   options = leafletOptions(pane = "toplayer")) %>% 
+  
+  #deprived areas in NI
+  
+  addCircleMarkers(data = NI.centroids, group = "circlegw",
+                   radius = 1.5,
+                   stroke = F,
+                   color = "#00E1BA", opacity = 0.85, fillOpacity = 0.85,
+                   options = leafletOptions(pane = "toplayer")) %>%
+  
+  addLegendCustom(colors = c("#00E1BA"), 
+                  labels = c("Most deprived 10% n'hood"),
+                  
+                  sizes = c(10), position = "topright" ) %>% 
+  
+  #addLegend(pal = factpal, values = LADbounds$gvaquinspercapita, labels = levels(LADbounds$gvaquinspercapita), position = "topright", title = "GVA Quintiles <br>(1 = low)") %>% 
+  removeDrawToolbar(clearFeatures = T) %>% 
+  addResetMapButton() 
+m2
