@@ -137,7 +137,7 @@ LSOAcentroids <- geojson_sf("https://opendata.arcgis.com/datasets/b7c49538f0464f
 #' merge data in
 LADbounds <- merge(LADbounds, allgva,by.x = "lad19cd", by.y = "LAD code", all.y = T)
 
-LSOAcentroids <- merge(LSOAcentroids, IMD19all[,c(1,5)], by.x = "lsoa11cd", by.y = "LSOA code (2011)")
+LSOAcentroids <- merge(LSOAcentroids, IMD19all[,c(1,2,3,5)], by.x = "lsoa11cd", by.y = "LSOA code (2011)")
 LSOAcentroids <- LSOAcentroids %>% filter(`IMD decile (1 is most deprived)` == 1)  # select just most deprived 10%
 
 #' colour pallete
@@ -247,6 +247,8 @@ LSOAcentroids2 <- merge(LSOAcentroids, allgva[,c(1,8)], by.x = "Local Authority 
 t1 <- LSOAcentroids2 %>% group_by(gvaquinspercapita) %>% summarise(`most deprived neighbourhood count` = sum(`IMD decile (1 is most deprived)`))
 t1$percent <- t1$`most deprived neighbourhood count`/sum(t1$`most deprived neighbourhood count`)*100
 view(t1)
+t1 <- as.tibble(t1) %>% select(-geometry)
+write.csv(t1, "deprived nhoods per GVA quintile.csv", row.names = F)
 
 #extra map for print
 
