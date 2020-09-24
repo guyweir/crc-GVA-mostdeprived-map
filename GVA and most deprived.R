@@ -27,8 +27,9 @@ allgva$`LAD code`[allgva$`LAD code` == "S12000046"] <- "S12000049"
 #`grab the population data for per-capita derived`
 library(nomisr)
 #x <- nomis_data_info()
-#y <- nomis_get_metadata("NM_31_1")
-#g <- nomis_get_metadata("NM_31_1", concept = "GEOGRAPHY")
+#y <- nomis_get_metadata("NM_2010_1")
+#g <- nomis_get_metadata("NM_2010_1", concept = "C_AGE")
+
 
 pops <- nomis_get_data("NM_31_1", time = "2018", sex = "Total", measures = 20100)
 pops2 <- filter(pops,GEOGRAPHY_TYPECODE == "434") #'   434 local authorities 2019 448 is as of April 2015
@@ -80,12 +81,14 @@ rm(IMD19Eng, IMD19Wales, gvafileslist, gvafiles)
 simd.df <- read_excel("SIMD+2020v2+-+ranks.xlsx", sheet = "SIMD 2020v2 ranks")
 simd.df <- select(simd.df, Data_Zone, SIMD2020v2_Rank) #prune
 simd.df <- simd.df %>% mutate(deciles = ntile(SIMD2020v2_Rank,10)) #deciles
+simd.dfLEAST <- simd.df %>% filter(deciles == 10) #keep most deprived decile
 simd.df <- simd.df %>% filter(deciles == 1) #keep most deprived decile
 
 
 #get the centroids
 datazonecentroids <- read_sf("http://sedsh127.sedsh.gov.uk/arcgis/rest/services/ScotGov/StatisticalUnits/MapServer/4/query?where=1%3D1&text=&objectIds=&time=&geometry=&geometryType=esriGeometryMultipoint&inSR=&spatialRel=esriSpatialRelWithin&relationParam=&outFields=*&returnGeometry=true&returnTrueCurves=false&maxAllowableOffset=&geometryPrecision=&outSR=&returnIdsOnly=false&returnCountOnly=false&orderByFields=&groupByFieldsForStatistics=&outStatistics=&returnZ=false&returnM=false&gdbVersion=&returnDistinctValues=false&resultOffset=&resultRecordCount=&f=geojson")
 datazonecentroids <- merge(datazonecentroids, simd.df, by.x = "DataZone", by.y = "Data_Zone")
+datazonecentroidsLEAST <- merge(datazonecentroids, simd.dfLEAST, by.x = "DataZone", by.y = "Data_Zone")
 
 ##### Northern Ireland #####
 niimd.df <- read_excel("NIMDM17_SA - for publication.xls", sheet = "MDM")
@@ -95,6 +98,8 @@ niimd.df <- niimd.df %>% mutate(deciles = ntile(`IMD Rank`,10))
 #select the most deprived decile
 niimd.df <- filter(niimd.df,deciles == 1 )
 
+#least deprived
+niimd.dfLEAST <- filter(niimd.df,deciles == 10 )
 
 #get the centroids
 library(rgdal)
@@ -109,14 +114,15 @@ suppressPackageStartupMessages(library(leaflet.extras))
 
 
 NI.soas <- readOGR(layer = "SA2011", dsn = "SA2011_Esri_Shapefile_0") #file too big for github have to DL from https://www.nisra.gov.uk/publications/small-area-boundaries-gis-format
-temp <- SpatialPointsDataFrame(gCentroid(NI.soas, byid=TRUE), 
-                               NI.soas@data, match.ID=FALSE)
+ temp <- SpatialPointsDataFrame(gCentroid(NI.soas, byid=TRUE), 
+                                NI.soas@data, match.ID=FALSE)
 #NI.centroids <- st_as_sf(temp)
 NI.centroids <- spTransform(temp, CRS("+proj=longlat +datum=WGS84")) #need to convert coordinates to long lat from UTM/BNG
 NI.centroids <- st_as_sf(NI.centroids)
 
 #merge in the NI IMD data
 NI.centroids <- merge(NI.centroids,niimd.df, by = "SA2011")
+NI.centroidsLEAST <- merge(NI.centroids,niimd.dfLEAST, by = "SA2011")
 #NI.centroids <- NI.centroids %>% select(SA2011,`IMD Rank`, geometry)
 
 #### MAPS!!! #####
@@ -139,7 +145,7 @@ LADbounds <- merge(LADbounds, allgva,by.x = "lad19cd", by.y = "LAD code", all.y 
 
 LSOAcentroids <- merge(LSOAcentroids, IMD19all[,c(1,2,3,5)], by.x = "lsoa11cd", by.y = "LSOA code (2011)")
 LSOAcentroids <- LSOAcentroids %>% filter(`IMD decile (1 is most deprived)` == 1)  # select just most deprived 10%
-
+LSOAcentroidsLEAST <- LSOAcentroids %>% filter(`IMD decile (1 is most deprived)` == 10)  # select just most deprived 10%
 #' colour pallete
 
 
@@ -241,14 +247,7 @@ combo <- htmltools::tagList(title,m2,sources) #I think this makes a combined htm
 browsable(combo)
 htmltools::save_html(combo, "index.html", background = "#FFFCF1") 
 
-#' work out %ge of deprived LSOAs by GVA quintile
-LSOAcentroids2 <- merge(LSOAcentroids, allgva[,c(1,8)], by.x = "Local Authority District code (2019)",by.y = "LAD code" ) #note LSOAcentriods already filtered to only include most deprived n'hoods.
 
-t1 <- LSOAcentroids2 %>% group_by(gvaquinspercapita) %>% summarise(`most deprived neighbourhood count` = sum(`IMD decile (1 is most deprived)`))
-t1$percent <- t1$`most deprived neighbourhood count`/sum(t1$`most deprived neighbourhood count`)*100
-view(t1)
-t1 <- as.tibble(t1) %>% select(-geometry)
-write.csv(t1, "deprived nhoods per GVA quintile.csv", row.names = F)
 
 #extra map for print
 
@@ -296,3 +295,65 @@ m2 <- leaflet(LADbounds, height = "700px", options = list(padding = 100)) %>% se
   removeDrawToolbar(clearFeatures = T) %>% 
   addResetMapButton() 
 m2
+
+
+#Further analysis work out population in deprived LSOAs found in the highest GVA quintiles.
+
+#get lsoa pops for E&W.
+lsoapops <- nomis_get_data("NM_2010_1", time = "2018", sex = "Total", measures = 20100, C_AGE = 200, geography = "TYPE298" )
+lsoapops <- select(lsoapops, c("GEOGRAPHY_NAME", "GEOGRAPHY_CODE","OBS_VALUE"))
+LSOAcentroids2 <- merge(LSOAcentroids2, lsoapops, by.x = "lsoa11cd", by.y = "GEOGRAPHY_CODE", all.x = T)
+
+NI.pops <- read_excel("SAPE18_SA_Totals.xlsx", 
+                      sheet = "Tabular", range = "A17:S4552")
+NI.pops <- NI.pops %>% select(Area_Code, `2018`)
+NI.centroids <- merge(NI.centroids, NI.pops, by.x = "SA2011", by.y = "Area_Code", all.x = T)
+
+
+scotlandpops <- sum(datazonecentroids$TotPop2011)
+EWpops <- sum(LSOAcentroids2$OBS_VALUE)
+NI.popscnt <- sum(na.omit(NI.centroids$`2018`))
+
+totallivingindepriveddecileUK <- sum(scotlandpops, EWpops, NI.popscnt)
+round(totallivingindepriveddecileUK,-4)
+
+#' work out %ge of deprived LSOAs by GVA quintile
+LSOAcentroids2 <- merge(LSOAcentroids, allgva[,c(1,8)], by.x = "Local Authority District code (2019)",by.y = "LAD code", all.x = T) #note LSOAcentriods already filtered to only include most deprived n'hoods.
+
+
+t1 <- LSOAcentroids2 %>% group_by(gvaquinspercapita) %>% summarise(`most deprived neighbourhood count` = sum(`IMD decile (1 is most deprived)`))
+t1$percent <- t1$`most deprived neighbourhood count`/sum(t1$`most deprived neighbourhood count`)*100
+view(t1)
+t1 <- as.tibble(t1) %>% select(-geometry)
+write.csv(t1, "deprived nhoods per GVA quintile.csv", row.names = F)
+
+
+#spatial query to select only deprived areas in GVA = 5 districts.
+#'NOTE this method allocates deprived n'hoods to parent Local Authority areas who have high GVA via spatial method. 
+#'The LAD boundary file is generalised so points on polygon borders may be allocated to the wrong LAD.
+#'did it like this for speed and our final figure will be rounded.
+
+GVA5bounds <- LADbounds %>% filter(gvaquinspercapita ==5) 
+LSOA_GVA5 <- st_intersection(LSOAcentroids2,GVA5bounds)
+DZ_GVA5 <- st_intersection(datazonecentroids,GVA5bounds)
+NI_GVA5 <- st_intersection(NI.centroids, GVA5bounds)
+
+#list the LSOAcodes to serve as filter for population data.
+lsoaCALCS <- lsoapops %>% filter(GEOGRAPHY_CODE %in% LSOA_GVA5$lsoa11cd)
+dzCALCS <- datazonecentroids %>% filter(DataZone %in% DZ_GVA5$DataZone)
+NICALCS <- NI.pops %>% filter(Area_Code %in% NI_GVA5$SA2011)
+
+#Population count of people in deprived n'hoods also in high GVA (quintile 5) local authorities)
+bigsum <- sum(lsoaCALCS$OBS_VALUE) + sum(dzCALCS$TotPop2011) + sum(NICALCS$`2018`)
+bigsum
+
+#proportion of most deprived LSOAs in GVA5 areas
+count_GVA5_depLSOAS <- nrow(LSOA_GVA5) + nrow(DZ_GVA5) + nrow(NICALCS)
+totdeprivednhoodsUK <- nrow(LSOAcentroids2) + nrow(datazonecentroids) + nrow(NI.centroids)
+proportion <- count_GVA5_depLSOAS / totdeprivednhoodsUK
+nrow(LSOA_GVA5)
+
+check <- nrow(LSOA_GVA5)/nrow(LSOAcentroids2)
+check
+
+
