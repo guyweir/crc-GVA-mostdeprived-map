@@ -2,6 +2,15 @@
 
 library(tidyverse)
 library(readxl)
+library(rgdal)
+library(rgeos)
+suppressPackageStartupMessages(library(sp))
+suppressPackageStartupMessages(library(sf))
+suppressPackageStartupMessages(library(ggplot2))
+suppressPackageStartupMessages(library(ggiraph))
+suppressPackageStartupMessages(library(geojsonio))
+suppressPackageStartupMessages(library(leaflet))
+suppressPackageStartupMessages(library(leaflet.extras))
 
 #' First we need to load in GVA data by local authority
 #' this will be split into quintiles or deciles, and choropleth mapped
@@ -87,30 +96,23 @@ simd.df <- simd.df %>% filter(deciles == 1) #keep most deprived decile
 
 #get the centroids
 datazonecentroids <- read_sf("http://sedsh127.sedsh.gov.uk/arcgis/rest/services/ScotGov/StatisticalUnits/MapServer/4/query?where=1%3D1&text=&objectIds=&time=&geometry=&geometryType=esriGeometryMultipoint&inSR=&spatialRel=esriSpatialRelWithin&relationParam=&outFields=*&returnGeometry=true&returnTrueCurves=false&maxAllowableOffset=&geometryPrecision=&outSR=&returnIdsOnly=false&returnCountOnly=false&orderByFields=&groupByFieldsForStatistics=&outStatistics=&returnZ=false&returnM=false&gdbVersion=&returnDistinctValues=false&resultOffset=&resultRecordCount=&f=geojson")
-datazonecentroids <- merge(datazonecentroids, simd.df, by.x = "DataZone", by.y = "Data_Zone")
 datazonecentroidsLEAST <- merge(datazonecentroids, simd.dfLEAST, by.x = "DataZone", by.y = "Data_Zone")
+datazonecentroids <- merge(datazonecentroids, simd.df, by.x = "DataZone", by.y = "Data_Zone")
+
 
 ##### Northern Ireland #####
 niimd.df <- read_excel("NIMDM17_SA - for publication.xls", sheet = "MDM")
 niimd.df <- niimd.df[,c(3,5)]
 niimd.df <- niimd.df %>% rename(`IMD Rank` = 2)
 niimd.df <- niimd.df %>% mutate(deciles = ntile(`IMD Rank`,10))
+#least deprived
+niimd.dfLEAST <- filter(niimd.df,deciles == 10 )
 #select the most deprived decile
 niimd.df <- filter(niimd.df,deciles == 1 )
 
-#least deprived
-niimd.dfLEAST <- filter(niimd.df,deciles == 10 )
+
 
 #get the centroids
-library(rgdal)
-library(rgeos)
-suppressPackageStartupMessages(library(sp))
-suppressPackageStartupMessages(library(sf))
-suppressPackageStartupMessages(library(ggplot2))
-suppressPackageStartupMessages(library(ggiraph))
-suppressPackageStartupMessages(library(geojsonio))
-suppressPackageStartupMessages(library(leaflet))
-suppressPackageStartupMessages(library(leaflet.extras))
 
 
 NI.soas <- readOGR(layer = "SA2011", dsn = "SA2011_Esri_Shapefile_0") #file too big for github have to DL from https://www.nisra.gov.uk/publications/small-area-boundaries-gis-format
@@ -144,8 +146,8 @@ LSOAcentroids <- geojson_sf("https://opendata.arcgis.com/datasets/b7c49538f0464f
 LADbounds <- merge(LADbounds, allgva,by.x = "lad19cd", by.y = "LAD code", all.y = T)
 
 LSOAcentroids <- merge(LSOAcentroids, IMD19all[,c(1,2,3,5)], by.x = "lsoa11cd", by.y = "LSOA code (2011)")
-LSOAcentroids <- LSOAcentroids %>% filter(`IMD decile (1 is most deprived)` == 1)  # select just most deprived 10%
 LSOAcentroidsLEAST <- LSOAcentroids %>% filter(`IMD decile (1 is most deprived)` == 10)  # select just most deprived 10%
+LSOAcentroids <- LSOAcentroids %>% filter(`IMD decile (1 is most deprived)` == 1)  # select just most deprived 10%
 #' colour pallete
 
 
@@ -174,6 +176,11 @@ addLegendCustom <- function(map, colors, labels, sizes, opacity = 0.7, position)
 }
 
 
+IconSet <- awesomeIconList(
+  "Cruise Ship"   = makeAwesomeIcon(icon= 'glass', markerColor = 'blue', iconColor = 'black', library = "glyphicon"),
+  "Pirate Ship" = makeAwesomeIcon(icon= 'fire', markerColor = 'black', iconColor = 'white', library = "glyphicon")
+)
+
 #map element
 m2 <- leaflet(LADbounds, height = "700px", options = list(padding = 100)) %>% setView(-3.5,54.6, 6) %>% 
   setMapWidgetStyle(list(background = "white")) %>% addProviderTiles(providers$CartoDB.Positron, providerTileOptions(opacity = 1) ) %>% 
@@ -190,13 +197,13 @@ m2 <- leaflet(LADbounds, height = "700px", options = list(padding = 100)) %>% se
                 direction = "auto"),
               options = leafletOptions(pane = "nottoplayer")) %>%
 #deprived areas in E&W
-  addCircleMarkers(data = LSOAcentroids, group = "circlegw",
+  addCircleMarkers(data = LSOAcentroids, group = "Most deprived 10% n'hood",
                  radius = 1.5,
                  stroke = F,
                  color = "#00E1BA", opacity = 0.85, fillOpacity = 0.85,
                  options = leafletOptions(pane = "toplayer")) %>% 
 #deprived areas in scotland
-  addCircleMarkers(data = datazonecentroids, group = "circlegw",
+  addCircleMarkers(data = datazonecentroids, group = "Most deprived 10% n'hood",
                    radius = 1.5,
                    stroke = F,
                    color = "#00E1BA", opacity = 0.85, fillOpacity = 0.85,
@@ -204,16 +211,38 @@ m2 <- leaflet(LADbounds, height = "700px", options = list(padding = 100)) %>% se
   
   #deprived areas in NI
   
-  addCircleMarkers(data = NI.centroids, group = "circlegw",
+  addCircleMarkers(data = NI.centroids, group = "Most deprived 10% n'hood",
                    radius = 1.5,
                    stroke = F,
                    color = "#00E1BA", opacity = 0.85, fillOpacity = 0.85,
                    options = leafletOptions(pane = "toplayer")) %>%
   
-  addLegendCustom(colors = c("#00E1BA"), 
-                  labels = c("Most deprived 10% n'hood"),
-                  
+  #non deprived areas in E&W
+  addCircleMarkers(data = LSOAcentroidsLEAST, group = "Least deprived 10% n'hood",
+                   radius = 1.5,
+                   stroke = F,
+                   color = "#2A2A2A", opacity = 0.85, fillOpacity = 0.85,
+                   options = leafletOptions(pane = "toplayer")) %>% 
+  #non deprived areas in scotland
+  addCircleMarkers(data = datazonecentroidsLEAST, group = "Least deprived 10% n'hood",
+                   radius = 1.5,
+                   stroke = F,
+                   color = "#2A2A2A", opacity = 0.85, fillOpacity = 0.85,
+                   options = leafletOptions(pane = "toplayer")) %>% 
+  
+  #non deprived areas in NI
+  
+  addCircleMarkers(data = NI.centroidsLEAST, group = "Least deprived 10% n'hood",
+                   radius = 1.5,
+                   stroke = F,
+                   color = "#2A2A2A", opacity = 0.85, fillOpacity = 0.85,
+                   options = leafletOptions(pane = "toplayer")) %>%
+  
+  addLegendCustom(colors = c("#00E1BA","#2A2A2A"), 
+                  labels = c("Most deprived 10% n'hood", "Least deprived 10% n'hood 10% n'hood"),
                   sizes = c(10), position = "topright" ) %>% 
+  
+  addLayersControl(overlayGroups = c("Most deprived 10% n'hood", "Least deprived 10% n'hood"),options = layersControlOptions(collapsed = FALSE)) %>% 
   
   addLegend(pal = factpal, values = LADbounds$gvaquinspercapita, labels = levels(LADbounds$gvaquinspercapita), position = "topright", title = "GVA Quintiles <br>(1 = low)") %>% 
   removeDrawToolbar(clearFeatures = T) %>% 
