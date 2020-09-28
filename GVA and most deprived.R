@@ -239,7 +239,7 @@ m2 <- leaflet(LADbounds, height = "700px", options = list(padding = 100)) %>% se
                    options = leafletOptions(pane = "toplayer")) %>%
   
   addLegendCustom(colors = c("#00E1BA","#2A2A2A"), 
-                  labels = c("Most deprived 10% n'hood", "Least deprived 10% n'hood 10% n'hood"),
+                  labels = c("Most deprived 10% n'hood", "Least deprived 10% n'hood"),
                   sizes = c(10), position = "topright" ) %>% 
   
   addLayersControl(overlayGroups = c("Most deprived 10% n'hood", "Least deprived 10% n'hood"),options = layersControlOptions(collapsed = FALSE)) %>% 
@@ -272,7 +272,7 @@ Analysis: WPI Economics on behalf of CRC"),
 )
 
 
-combo <- htmltools::tagList(title,m2,sources) #I think this makes a combined html object
+combo <- htmltools::tagList(m2,sources) #I think this makes a combined html object
 browsable(combo)
 htmltools::save_html(combo, "index.html", background = "#FFFCF1") 
 
