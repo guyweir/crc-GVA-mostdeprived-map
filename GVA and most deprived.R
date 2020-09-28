@@ -277,8 +277,13 @@ browsable(combo)
 htmltools::save_html(combo, "index.html", background = "#FFFCF1") 
 
 
+###################################################################
+###################################################################
+######################## extra for print ######################
+###################################################################
+###################################################################
 
-#extra map for print
+
 
 m2 <- leaflet(LADbounds, height = "700px", options = list(padding = 100)) %>% setView(-3.5,54.6, 6) %>% 
   setMapWidgetStyle(list(background = "white")) %>% addProviderTiles(providers$CartoDB.Positron, providerTileOptions(opacity = 1) ) %>% 
