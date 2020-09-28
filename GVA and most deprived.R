@@ -175,11 +175,10 @@ addLegendCustom <- function(map, colors, labels, sizes, opacity = 0.7, position)
                    labels = labelAdditions, opacity = opacity, position = position))
 }
 
+groups <- c("Most deprived 10% n'hood" <- "<img src = 'https://raw.githubusercontent.com/guyweir/crc-GVA-mostdeprived-map/master/cyan%20circle.png' height = '7.5' width = '7.5'> Most deprived 10% n'hood",
+            "Least deprived 10% n'hood"<- "<img src = 'https://raw.githubusercontent.com/guyweir/crc-GVA-mostdeprived-map/master/Grey%20circle.png' height = '7.5' width = '7.5'> Least deprived 10% n'hood")
 
-IconSet <- awesomeIconList(
-  "Cruise Ship"   = makeAwesomeIcon(icon= 'glass', markerColor = 'blue', iconColor = 'black', library = "glyphicon"),
-  "Pirate Ship" = makeAwesomeIcon(icon= 'fire', markerColor = 'black', iconColor = 'white', library = "glyphicon")
-)
+
 
 #map element
 m2 <- leaflet(LADbounds, height = "700px", options = list(padding = 100)) %>% setView(-3.5,54.6, 6) %>% 
@@ -197,13 +196,13 @@ m2 <- leaflet(LADbounds, height = "700px", options = list(padding = 100)) %>% se
                 direction = "auto"),
               options = leafletOptions(pane = "nottoplayer")) %>%
 #deprived areas in E&W
-  addCircleMarkers(data = LSOAcentroids, group = "Most deprived 10% n'hood",
+  addCircleMarkers(data = LSOAcentroids, group = groups[1],
                  radius = 1.5,
                  stroke = F,
                  color = "#00E1BA", opacity = 0.85, fillOpacity = 0.85,
                  options = leafletOptions(pane = "toplayer")) %>% 
 #deprived areas in scotland
-  addCircleMarkers(data = datazonecentroids, group = "Most deprived 10% n'hood",
+  addCircleMarkers(data = datazonecentroids, group = groups[1],
                    radius = 1.5,
                    stroke = F,
                    color = "#00E1BA", opacity = 0.85, fillOpacity = 0.85,
@@ -211,20 +210,20 @@ m2 <- leaflet(LADbounds, height = "700px", options = list(padding = 100)) %>% se
   
   #deprived areas in NI
   
-  addCircleMarkers(data = NI.centroids, group = "Most deprived 10% n'hood",
+  addCircleMarkers(data = NI.centroids, group = groups[1],
                    radius = 1.5,
                    stroke = F,
                    color = "#00E1BA", opacity = 0.85, fillOpacity = 0.85,
                    options = leafletOptions(pane = "toplayer")) %>%
   
   #non deprived areas in E&W
-  addCircleMarkers(data = LSOAcentroidsLEAST, group = "Least deprived 10% n'hood",
+  addCircleMarkers(data = LSOAcentroidsLEAST, group = groups[2],
                    radius = 1.5,
                    stroke = F,
                    color = "#2A2A2A", opacity = 0.85, fillOpacity = 0.85,
                    options = leafletOptions(pane = "toplayer")) %>% 
   #non deprived areas in scotland
-  addCircleMarkers(data = datazonecentroidsLEAST, group = "Least deprived 10% n'hood",
+  addCircleMarkers(data = datazonecentroidsLEAST, group = groups[2],
                    radius = 1.5,
                    stroke = F,
                    color = "#2A2A2A", opacity = 0.85, fillOpacity = 0.85,
@@ -232,23 +231,23 @@ m2 <- leaflet(LADbounds, height = "700px", options = list(padding = 100)) %>% se
   
   #non deprived areas in NI
   
-  addCircleMarkers(data = NI.centroidsLEAST, group = "Least deprived 10% n'hood",
+  addCircleMarkers(data = NI.centroidsLEAST, group = groups[2],
                    radius = 1.5,
                    stroke = F,
                    color = "#2A2A2A", opacity = 0.85, fillOpacity = 0.85,
                    options = leafletOptions(pane = "toplayer")) %>%
   
-  addLegendCustom(colors = c("#00E1BA","#2A2A2A"), 
-                  labels = c("Most deprived 10% n'hood", "Least deprived 10% n'hood"),
-                  sizes = c(10), position = "topright" ) %>% 
-  
-  addLayersControl(overlayGroups = c("Most deprived 10% n'hood", "Least deprived 10% n'hood"),options = layersControlOptions(collapsed = FALSE)) %>% 
+  # addLegendCustom(colors = c("#00E1BA","#2A2A2A"), 
+  #                 labels = c("Most deprived 10% n'hood", "Least deprived 10% n'hood"),
+  #                 sizes = c(10), position = "topright" ) %>% 
+  # 
+  addLayersControl(overlayGroups = groups,
+                   options = layersControlOptions(collapsed = FALSE)) %>% 
   
   addLegend(pal = factpal, values = LADbounds$gvaquinspercapita, labels = levels(LADbounds$gvaquinspercapita), position = "topright", title = "GVA Quintiles <br>(1 = low)") %>% 
   removeDrawToolbar(clearFeatures = T) %>% 
   addResetMapButton() 
 m2
-
 
 
 #' other web page elements
@@ -274,7 +273,7 @@ Analysis: WPI Economics on behalf of CRC"),
 
 combo <- htmltools::tagList(m2,sources) #I think this makes a combined html object
 browsable(combo)
-htmltools::save_html(combo, "index.html", background = "#FFFCF1") 
+htmltools::save_html(combo, "index.html") 
 
 
 ###################################################################
